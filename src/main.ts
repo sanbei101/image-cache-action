@@ -26,28 +26,41 @@ async function run() {
     const images = imagesInput.split(/\r?\n/).map(i => i.trim()).filter(Boolean);
     const states = [];
 
+    const startTime = Date.now();
     for (const img of images) {
+      const t0 = Date.now();
       const digest = await getDigest(img);
+      const digestTime = Date.now() - t0;
+
       const hash = digest.replace(/sha256:/g, '').substring(0, 64);
       const safeName = img.replace(/[^a-z0-9]/gi, '_');
-      
+
       const cacheKey = `${process.env.RUNNER_OS}-docker-${safeName}-${hash}`;
       const imgDir = path.join(CACHE_BASE, safeName);
       const tarPath = path.join(imgDir, 'image.tar');
 
       await io.mkdirP(imgDir);
+      const t1 = Date.now();
       const hitKey = await cache.restoreCache([imgDir], cacheKey);
+      const cacheTime = Date.now() - t1;
 
       if (hitKey) {
-        core.info(`✅ Hit: ${img}`);
+        const t2 = Date.now();
+        core.info(`✅ Hit: ${img} (digest: ${digestTime}ms, cache: ${cacheTime}ms)`);
         if (fs.existsSync(tarPath)) await exec.exec('docker', ['load', '-i', tarPath]);
+        const loadTime = Date.now() - t2;
+        core.info(`   docker load: ${loadTime}ms`);
         states.push({ image: img, key: cacheKey, dir: imgDir, hit: true });
       } else {
-        core.info(`❌ Miss: ${img}, pulling...`);
+        const t2 = Date.now();
+        core.info(`❌ Miss: ${img}, pulling... (digest: ${digestTime}ms, cache: ${cacheTime}ms)`);
         await exec.exec('docker', ['pull', img]);
+        const pullTime = Date.now() - t2;
+        core.info(`   docker pull: ${pullTime}ms`);
         states.push({ image: img, key: cacheKey, dir: imgDir, hit: false });
       }
     }
+    core.info(`Total time: ${Date.now() - startTime}ms`);
     
     core.saveState('image_states', JSON.stringify(states));
   } catch (e: any) {
