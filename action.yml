@@ -1,0 +1,13 @@
+name: 'Docker Image Cache'
+description: 'Cache downloaded Docker images to speed up workflows'
+author: 'sanbei101'
+
+inputs:
+  images:
+    description: '需要缓存的 Docker 镜像列表,多行输入,每行一个镜像'
+    required: true
+
+runs:
+  using: 'node24'
+  main: 'dist/main.js'
+  post: 'dist/post.js'

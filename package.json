@@ -1,0 +1,22 @@
+{
+	"name": "image-cache-action",
+	"version": "1.0.0",
+	"private": false,
+	"description": "image cache github action",
+	"type": "module",
+	"scripts": {
+		"build": "rolldown -c rolldown.config.ts",
+		"test": "vitest"
+	},
+	"dependencies": {
+		"@actions/cache": "^6.0.0",
+		"@actions/core": "^3.0.1",
+		"@actions/exec": "^3.0.0",
+		"@actions/io": "^3.0.2"
+	},
+	"devDependencies": {
+		"@types/node": "^25.6.0",
+		"rolldown": "1.0.0-rc.17",
+		"vitest": "^4.1.5"
+	}
+}
