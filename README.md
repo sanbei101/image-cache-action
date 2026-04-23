@@ -6,7 +6,7 @@
 
 ```yaml
 - name: 缓存 Docker 镜像
-  uses: sanbei101/image-sync-action@v1
+  uses: sanbei101/image-cache-action@v1
   with:
     images: |
       nginx:latest
