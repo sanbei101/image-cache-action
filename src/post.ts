@@ -1,32 +1,32 @@
 import * as core from '@actions/core';
 import * as exec from '@actions/exec';
 import * as cache from '@actions/cache';
-import * as io from '@actions/io';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const CACHE_DIR = '/tmp/docker-cache-dir';
-
 async function run() {
   try {
-    const cacheKey = core.getState('cache_key');
-    const imagesInput = core.getState('images_list');
-    
-    if (!cacheKey || !imagesInput) return;
+    const stateStr = core.getState('image_states');
+    if (!stateStr) return;
 
-    await io.mkdirP(CACHE_DIR);
-    const images = imagesInput.split(/\r?\n/).map(i => i.trim()).filter(Boolean);
+    const states = JSON.parse(stateStr);
 
-    for (const img of images) {
-      const tar = path.join(CACHE_DIR, `${img.replace(/[^a-z0-9]/gi, '_')}.tar`);
+    for (const state of states) {
+      if (state.hit) continue; 
+
+      core.info(`💾 Saving: ${state.image}`);
+      const tarPath = path.join(state.dir, 'image.tar');
+
       try {
-        await exec.exec('docker', ['save', '-o', tar, img]);
+        await exec.exec('docker', ['save', '-o', tarPath, state.image]);
+        if (fs.existsSync(tarPath)) {
+          await cache.saveCache([state.dir], state.key);
+        }
       } catch {}
     }
-    if (fs.readdirSync(CACHE_DIR).length > 0) {
-      await cache.saveCache([CACHE_DIR], cacheKey);
-    }
-  } catch {}
+  } catch (e: any) {
+    core.warning(e.message);
+  }
 }
 
 run();

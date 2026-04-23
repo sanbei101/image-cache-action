@@ -1,10 +1,11 @@
 import * as core from '@actions/core';
 import * as exec from '@actions/exec';
 import * as cache from '@actions/cache';
+import * as io from '@actions/io';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const CACHE_DIR = '/tmp/docker-cache-dir';
+const CACHE_BASE = '/tmp/smart-docker-cache';
 
 async function getDigest(image: string): Promise<string> {
   let stdout = '';
@@ -23,20 +24,31 @@ async function run() {
   try {
     const imagesInput = core.getInput('images');
     const images = imagesInput.split(/\r?\n/).map(i => i.trim()).filter(Boolean);
-    const digests = await Promise.all(images.map(getDigest));
-    const hash = digests.join('-').replace(/sha256:/g, '').substring(0, 100);
-    const cacheKey = `${process.env.RUNNER_OS}-docker-cache-${hash}`;
+    const states = [];
 
-    core.saveState('cache_key', cacheKey);
-    core.saveState('images_list', imagesInput);
+    for (const img of images) {
+      const digest = await getDigest(img);
+      const hash = digest.replace(/sha256:/g, '').substring(0, 64);
+      const safeName = img.replace(/[^a-z0-9]/gi, '_');
+      
+      const cacheKey = `${process.env.RUNNER_OS}-docker-${safeName}-${hash}`;
+      const imgDir = path.join(CACHE_BASE, safeName);
+      const tarPath = path.join(imgDir, 'image.tar');
 
-    if (await cache.restoreCache([CACHE_DIR], cacheKey)) {
-      if (!fs.existsSync(CACHE_DIR)) fs.mkdirSync(CACHE_DIR, { recursive: true });
-      for (const img of images) {
-        const tar = path.join(CACHE_DIR, `${img.replace(/[^a-z0-9]/gi, '_')}.tar`);
-        if (fs.existsSync(tar)) await exec.exec('docker', ['load', '-i', tar]);
+      await io.mkdirP(imgDir);
+      const hitKey = await cache.restoreCache([imgDir], cacheKey);
+
+      if (hitKey) {
+        core.info(`✅ Hit: ${img}`);
+        if (fs.existsSync(tarPath)) await exec.exec('docker', ['load', '-i', tarPath]);
+        states.push({ image: img, key: cacheKey, dir: imgDir, hit: true });
+      } else {
+        core.info(`❌ Miss: ${img}`);
+        states.push({ image: img, key: cacheKey, dir: imgDir, hit: false });
       }
     }
+    
+    core.saveState('image_states', JSON.stringify(states));
   } catch (e: any) {
     core.setFailed(e.message);
   }
