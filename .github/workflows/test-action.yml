@@ -28,14 +28,14 @@ jobs:
       - name: Build action
         run: pnpm install && pnpm build
 
-      - name: Cache ubuntu:24.04
+      - name: Cache Images
         uses: ./
         with:
           images: |
             ubuntu:24.04
             postgres:18
 
-      - name: pull image
+      - name: Pull Images(这里应该会命中缓存)
         run: |
           docker pull ubuntu:24.04
           docker pull postgres:18
