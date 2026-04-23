@@ -43,7 +43,8 @@ async function run() {
         if (fs.existsSync(tarPath)) await exec.exec('docker', ['load', '-i', tarPath]);
         states.push({ image: img, key: cacheKey, dir: imgDir, hit: true });
       } else {
-        core.info(`❌ Miss: ${img}`);
+        core.info(`❌ Miss: ${img}, pulling...`);
+        await exec.exec('docker', ['pull', img]);
         states.push({ image: img, key: cacheKey, dir: imgDir, hit: false });
       }
     }
