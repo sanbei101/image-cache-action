@@ -34,6 +34,9 @@ jobs:
           images: |
             ubuntu:24.04
             postgres:18
+            alpine:latest
+            golang:1.26
+            swr.cn-north-4.myhuaweicloud.com/sanbei/chat:latest
 
       - name: Pull Images(这里应该会命中缓存)
         run: |
