@@ -10,11 +10,13 @@ const CACHE_BASE = '/tmp/smart-docker-cache';
 async function getDigest(image: string): Promise<string> {
   let stdout = '';
   try {
-    await exec.exec('skopeo', ['inspect', '--override-os', 'linux', `docker://${image}`], {
+    await exec.exec('skopeo', ['inspect', '--override-os', 'linux', '--override-arch', 'amd64', '--no-tags', `docker://${image}`], {
       silent: true,
       listeners: { stdout: (data) => { stdout += data.toString(); } }
     });
-    return JSON.parse(stdout).Digest;
+    const digest = stdout.trim();
+    if (digest) return digest;
+    return image;
   } catch {
     return image;
   }
