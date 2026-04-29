@@ -1,28 +1,27 @@
 import * as core from '@actions/core';
 import * as exec from '@actions/exec';
-import * as cache from '@actions/cache';
-import * as fs from 'fs';
-import * as path from 'path';
 
 async function saveImage(state: any) {
   if (state.hit) return null;
 
   const t0 = Date.now();
-  core.info(`💾 Saving: ${state.image}`);
-  const tarPath = path.join(state.dir, 'image.tar');
+  core.info(`🚀 Pushing to GHCR cache: ${state.image}`);
+
+  const githubRepo = (process.env.GITHUB_REPOSITORY || '').toLowerCase();
+  const safeImageName = state.image.replace(/[^a-z0-9_.-]/gi, '-').toLowerCase();
+  
+  const targetImage = `ghcr.io/${githubRepo}/imagecache/${safeImageName}:${state.key}`;
 
   try {
-    await exec.exec('docker', ['save', '-o', tarPath, state.image]);
-    const saveTime = Date.now() - t0;
-
-    if (fs.existsSync(tarPath)) {
-      const t1 = Date.now();
-      await cache.saveCache([state.dir], state.key);
-      const uploadTime = Date.now() - t1;
-      core.info(`   docker save: ${saveTime}ms, cache upload: ${uploadTime}ms`);
-      return saveTime + uploadTime;
-    }
-  } catch {}
+    await exec.exec('docker', ['tag', state.image, targetImage]);
+    await exec.exec('docker', ['push', targetImage]);
+    
+    const pushTime = Date.now() - t0;
+    core.info(`   docker push: ${pushTime}ms`);
+    return pushTime;
+  } catch (e: any) {
+    core.warning(`Failed to push image to cache: ${e.message}`);
+  }
   return null;
 }
 

@@ -1,11 +1,5 @@
 import * as core from '@actions/core';
 import * as exec from '@actions/exec';
-import * as cache from '@actions/cache';
-import * as io from '@actions/io';
-import * as fs from 'fs';
-import * as path from 'path';
-
-const CACHE_BASE = '/tmp/smart-docker-cache';
 
 async function getDigest(image: string): Promise<string> {
   let stdout = '';
@@ -31,31 +25,31 @@ async function processImage(img: string) {
   const digestTime = Date.now() - t0;
 
   const hash = digest.replace(/sha256:/g, '').substring(0, 64);
-  const safeName = img.replace(/[^a-z0-9]/gi, '_');
+  const cacheKey = `${process.env.RUNNER_OS}-docker-${hash}`;
+  
+  const githubRepo = (process.env.GITHUB_REPOSITORY || '').toLowerCase();
+  const safeImageName = img.replace(/[^a-z0-9_.-]/gi, '-').toLowerCase();
+  const targetImage = `ghcr.io/${githubRepo}/imagecache/${safeImageName}:${cacheKey}`;
 
-  const cacheKey = `${process.env.RUNNER_OS}-docker-${safeName}-${hash}`;
-  const imgDir = path.join(CACHE_BASE, safeName);
-  const tarPath = path.join(imgDir, 'image.tar');
-
-  await io.mkdirP(imgDir);
-  const t1 = Date.now();
-  const hitKey = await cache.restoreCache([imgDir], cacheKey);
-  const cacheTime = Date.now() - t1;
-
-  if (hitKey) {
+  try {
+    const t1 = Date.now();
+    await exec.exec('docker', ['pull', targetImage]);
+    const cacheTime = Date.now() - t1;
+    
+    // 重命名回原本的镜像名称以便给后续步骤使用
+    await exec.exec('docker', ['tag', targetImage, img]);
+    core.info(`✅ Hit: ${img} (digest: ${digestTime}ms, pull cache: ${cacheTime}ms)`);
+    
+    return { image: img, key: cacheKey, hit: true };
+  } catch {
+    // 拉取失败说明没有缓存,开始拉取原始镜像
     const t2 = Date.now();
-    core.info(`✅ Hit: ${img} (digest: ${digestTime}ms, cache: ${cacheTime}ms)`);
-    if (fs.existsSync(tarPath)) await exec.exec('docker', ['load', '-i', tarPath]);
-    const loadTime = Date.now() - t2;
-    core.info(`   docker load: ${loadTime}ms`);
-    return { image: img, key: cacheKey, dir: imgDir, hit: true, totalTime: Date.now() - t0 };
-  } else {
-    const t2 = Date.now();
-    core.info(`❌ Miss: ${img}, pulling... (digest: ${digestTime}ms, cache: ${cacheTime}ms)`);
+    core.info(`❌ Miss: ${img}, pulling original image...`);
     await exec.exec('docker', ['pull', img]);
     const pullTime = Date.now() - t2;
     core.info(`   docker pull: ${pullTime}ms`);
-    return { image: img, key: cacheKey, dir: imgDir, hit: false, totalTime: Date.now() - t0 };
+    
+    return { image: img, key: cacheKey, hit: false };
   }
 }
 
