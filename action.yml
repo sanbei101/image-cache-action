@@ -9,6 +9,10 @@ inputs:
   images:
     description: '需要缓存的 Docker 镜像列表,多行输入,每行一个镜像'
     required: true
+  github_token:
+    description: 'GITHUB_TOKEN for ghcr.io authentication'
+    required: false
+    default: ${{ github.token }}
 
 runs:
   using: 'node24'

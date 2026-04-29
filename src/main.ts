@@ -56,6 +56,16 @@ async function processImage(img: string) {
 async function run() {
   try {
     const imagesInput = core.getInput('images');
+    const token = core.getInput('github_token');
+    
+    if (token) {
+      core.info('🔑 Logging into ghcr.io...');
+      const actor = process.env.GITHUB_ACTOR || 'metadata';
+      await exec.exec('docker', ['login', 'ghcr.io', '-u', actor, '--password-stdin'], {
+        input: Buffer.from(token)
+      });
+    }
+
     const images = imagesInput.split(/\r?\n/).map(i => i.trim()).filter(Boolean);
 
     const startTime = Date.now();
